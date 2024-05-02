@@ -34,3 +34,16 @@ int main (int argc, const char * argv[])
 
   return 0;
 }
+
+// 
+int producer(){
+
+  return 0;
+}
+
+
+int consumer(){
+
+  return 0;
+}
+

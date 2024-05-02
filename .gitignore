@@ -1,0 +1,6 @@
+# Ignore .vscode folder
+.vscode/
+# Ignore queue.o
+queue.o
+# Ignore store_manager
+store_manager
