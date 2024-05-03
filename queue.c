@@ -5,17 +5,33 @@
 #include <stddef.h>
 #include <string.h>
 #include "queue.h"
+#include <semaphore.h>
 
 //To create a queue
 queue* queue_init(int size)
 {
 
   queue * q = (queue *)malloc(sizeof(queue));
+  if (q == NULL)
+  {
+    perror("Could not assign memory for queue");
+    exit(-1);
+  }
   q->start = size; // start at the last available position
   q->end = size; // end at the last available position
   q->size = size;
   q->elements = 0;
-  q->buffer = (struct element *)malloc(size * sizeof(struct element));
+  q->buffer = (struct element *)malloc(size * sizeof(struct element)); // Allocate memory for the buffer
+  if (q->buffer == NULL) // Check buffer memory was allocated correctly
+  {
+    perror("Could not assign memory for queue buffer");
+    exit(-1);
+  }
+  if (sem_init(&(q->write), 0, 1) != 0) //  Create semaphore and check it was created properly
+  {
+    perror("Could not create the semaphore");
+    exit(-1);
+  }
 
   return q;
 }
@@ -27,7 +43,7 @@ int queue_put(queue *q, struct element* x)
   if (queue_full(q)) // Check if there is still space in the queue
   {
     perror("Queue is full");
-    exit(-1);
+    return -1;
   }
   
   // Store element
@@ -75,11 +91,8 @@ struct element* queue_get(queue *q)
 
   // Decrease the number of elements in the queue
   q->elements = q->elements - 1;
-  if (q->elements < 0) // Error check for negative number of elements
-  {
-    perror("Negative number of elements in the queue");
-    exit(-1);
-  }
+  if (q->elements < 0) // End of queue, set to 19
+  q->elements = q->size -1;
   
   return element;
 }
@@ -105,6 +118,11 @@ int queue_full(queue *q)
 int queue_destroy(queue *q)
 {
   free(q->buffer);
+  if (sem_destroy(&(q->write)) != 0)
+  {
+    perror("Could not destroy semaphore");
+    exit(-1);
+  }
   free(q);
   return 0;
 }

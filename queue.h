@@ -17,6 +17,7 @@ typedef struct queue {
   int end; // Position (number) of the end of the queue (next elem out)
   int elements; // Number of elements in the queue
   struct element * buffer; // Array of elements
+  sem_t write;
 }queue;
 
 queue* queue_init (int size);
