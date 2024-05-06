@@ -11,6 +11,7 @@ pthread_mutex_t writing_mutex;
 pthread_cond_t writing_cond;
 pthread_mutex_t reading_mutex;
 pthread_cond_t reading_cond;
+pthread_mutex_t stock_mutex;
 
 //To create a queue
 queue* queue_init(int size)
@@ -32,6 +33,7 @@ queue* queue_init(int size)
   pthread_cond_init(&writing_cond, NULL); // Initialize writing condition variable
   pthread_mutex_init(&reading_mutex, NULL); // Initialize reading mutex
   pthread_cond_init(&reading_cond, NULL); // Initialize reading condition variable
+  pthread_mutex_init(&stock_mutex, NULL); // Initialize stock mutex
 
   return q;
 }
@@ -49,12 +51,13 @@ int queue_put(queue *q, struct element* x)
   int position = (q->in); // Get the position of the element to be put
   q->in = (q->in + 1) % q->size; // Move pointer so the next producer thread can insert correctly
   q->elements = q->elements + 1;  // Increase the number of elements in the queue
-  pthread_mutex_unlock(&writing_mutex); // Unlock the mutex
 
   // Store element
   q->buffer[position] = *x;
 
+  pthread_mutex_unlock(&writing_mutex); // Unlock the mutex
   pthread_cond_signal(&reading_cond); // Signal that there is an element in the queue
+
   return 0;
 }
 
@@ -72,11 +75,11 @@ struct element* queue_get(queue *q)
   int position = (q->out); // Get the position of the element to be consumed
   q->out = (q->out + 1) % q->size; // Move pointer so the next consumer thread can consume the next element
   q->elements = q->elements - 1; // Decrease the number of elements in the queue
-  pthread_mutex_unlock(&reading_mutex); // Unlock the mutex
 
   // Get element from the queue
   struct element * element = malloc(sizeof(struct element));
-  if (element == NULL) {
+  if (element == NULL)
+  {
     perror("Could not assign memory for element in queue_get");
     exit(-1);
   }
@@ -85,6 +88,7 @@ struct element* queue_get(queue *q)
   element->product_id = getelem->product_id;
   element->units = getelem->units;
 
+  pthread_mutex_unlock(&reading_mutex); // Unlock the mutex
   pthread_cond_signal(&writing_cond); // Signal that there is space in the queue
   
   return element;
@@ -112,5 +116,27 @@ int queue_destroy(queue *q)
 {
   free(q->buffer);
   free(q);
+  return 0;
+}
+
+int purchase(int *total, int *stock, int amount, int units)
+{
+  pthread_mutex_lock(&stock_mutex); // Lock the mutex to update the stock
+
+  *stock = *stock + units; // Update the stock
+  *total = *total - amount; // Update the total
+
+  pthread_mutex_unlock(&stock_mutex); // Unlock the mutex
+  return 0;
+}
+
+int sale(int *total, int *stock, int amount, int units)
+{
+  pthread_mutex_lock(&stock_mutex); // Lock the mutex to update the stock
+
+  *stock = *stock - units; // Update the stock
+  *total = *total + amount; // Update the total
+
+  pthread_mutex_unlock(&stock_mutex); // Unlock the mutex
   return 0;
 }
