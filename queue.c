@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <string.h>
 #include "queue.h"
-#include <semaphore.h>
+#include <pthread.h>
 
 //To create a queue
 queue* queue_init(int size)
@@ -17,22 +17,11 @@ queue* queue_init(int size)
     perror("Could not assign memory for queue");
     exit(-1);
   }
-  q->start = size; // start at the last available position
-  q->end = size; // end at the last available position
-  q->size = size;
+  q->in = 0; // start at the first available position
+  q->out = 0; // end at the first available position
+  q->size = size; // max number of elements
   q->elements = 0;
   q->buffer = (struct element *)malloc(size * sizeof(struct element)); // Allocate memory for the buffer
-  if (q->buffer == NULL) // Check buffer memory was allocated correctly
-  {
-    perror("Could not assign memory for queue buffer");
-    exit(-1);
-  }
-  if (sem_init(&(q->write), 0, 1) != 0) //  Create semaphore and check it was created properly
-  {
-    perror("Could not create the semaphore");
-    exit(-1);
-  }
-
   return q;
 }
 
@@ -43,20 +32,15 @@ int queue_put(queue *q, struct element* x)
   if (queue_full(q)) // Check if there is still space in the queue
   {
     perror("Queue is full");
-    return -1;
+    exit(-1);
   }
   
+  int position = (q->in); // Get the position of the element to be put
+  q->in = (q->in + 1) % q->size; // Move pointer so the next producer thread can insert correctly
+  q->elements = q->elements + 1;  // Increase the number of elements in the queue
+
   // Store element
-  struct element *putelem = &(q->buffer[q->end]);
-  putelem->op = x->op;
-  putelem->product_id = x->product_id;
-  putelem->units = x->units;
-
-  //Move pointer
-  q->end = (q->end + 1) % q->size;
-
-  // Increase the number of elements in the queue
-  q->elements = q->elements + 1;
+  q->buffer[position] = *x;
 
   return 0;
 }
@@ -71,28 +55,20 @@ struct element* queue_get(queue *q)
     perror("Queue is empty");
     exit(-1);
   }
+  
+  int position = (q->out); // Get the position of the element to be consumed
+  q->out = (q->out + 1) % q->size; // Move pointer so the next consumer thread can consume the next element
+  q->elements = q->elements - 1; // Decrease the number of elements in the queue
 
-  struct element *element = malloc(sizeof(struct element));
+  struct element * element = malloc(sizeof(struct element));
   if (element == NULL) {
     perror("Could not assign memory for element in queue_get");
     exit(-1);
   }
-  struct element getelem = q->buffer[q->end];
-  element->op = getelem.op;
-  element->product_id = getelem.product_id;
-  element->units = getelem.units;
-
-  //Move pointer
-  q->end = (q->end + 1) % q->size;
-  if (q->end < 0) // Check if we are at the end of the queue
-  {
-    q->end = q->size - 1; // set to the end of the circular queue
-  }
-
-  // Decrease the number of elements in the queue
-  q->elements = q->elements - 1;
-  if (q->elements < 0) // End of queue, set to 19
-  q->elements = q->size -1;
+  struct element * getelem = &(q->buffer[position]);
+  element->op = getelem->op;
+  element->product_id = getelem->product_id;
+  element->units = getelem->units;
   
   return element;
 }
@@ -118,11 +94,6 @@ int queue_full(queue *q)
 int queue_destroy(queue *q)
 {
   free(q->buffer);
-  if (sem_destroy(&(q->write)) != 0)
-  {
-    perror("Could not destroy semaphore");
-    exit(-1);
-  }
   free(q);
   return 0;
 }

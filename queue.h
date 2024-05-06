@@ -13,11 +13,10 @@ struct element {
 typedef struct queue {
   // Define the struct yourself
   int size; // Size of the queue (max number of elements)
-  int start; // Position (number) of the start of the queue (empty space for the next elem in)
-  int end; // Position (number) of the end of the queue (next elem out)
+  int in; // Position (number) of the start of the queue (empty space for the next elem in)
+  int out; // Position (number) of the end of the queue (next elem out)
   int elements; // Number of elements in the queue
   struct element * buffer; // Array of elements
-  sem_t write;
 }queue;
 
 queue* queue_init (int size);
