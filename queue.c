@@ -7,6 +7,11 @@
 #include "queue.h"
 #include <pthread.h>
 
+pthread_mutex_t writing_mutex;
+pthread_cond_t writing_cond;
+pthread_mutex_t reading_mutex;
+pthread_cond_t reading_cond;
+
 //To create a queue
 queue* queue_init(int size)
 {
@@ -17,11 +22,17 @@ queue* queue_init(int size)
     perror("Could not assign memory for queue");
     exit(-1);
   }
-  q->in = 0; // start at the first available position
-  q->out = 0; // end at the first available position
-  q->size = size; // max number of elements
+  q->in = 0; // Start at the first available position
+  q->out = 0; // End at the first available position
+  q->size = size; // Max number of elements
   q->elements = 0;
   q->buffer = (struct element *)malloc(size * sizeof(struct element)); // Allocate memory for the buffer
+
+  pthread_mutex_init(&writing_mutex, NULL); // Initialize writing mutex
+  pthread_cond_init(&writing_cond, NULL); // Initialize writing condition variable
+  pthread_mutex_init(&reading_mutex, NULL); // Initialize reading mutex
+  pthread_cond_init(&reading_cond, NULL); // Initialize reading condition variable
+
   return q;
 }
 
@@ -29,19 +40,21 @@ queue* queue_init(int size)
 int queue_put(queue *q, struct element* x)
 {
 
-  if (queue_full(q)) // Check if there is still space in the queue
+  while (queue_full(q)) // Check if there is still space in the queue
   {
-    perror("Queue is full");
-    exit(-1);
+    pthread_cond_wait(&writing_cond, &writing_mutex); // Wait until there is space in the queue
   }
   
+  pthread_mutex_lock(&writing_mutex); // Lock the mutex to write to the queue
   int position = (q->in); // Get the position of the element to be put
   q->in = (q->in + 1) % q->size; // Move pointer so the next producer thread can insert correctly
   q->elements = q->elements + 1;  // Increase the number of elements in the queue
+  pthread_mutex_unlock(&writing_mutex); // Unlock the mutex
 
   // Store element
   q->buffer[position] = *x;
 
+  pthread_cond_signal(&reading_cond); // Signal that there is an element in the queue
   return 0;
 }
 
@@ -50,16 +63,18 @@ struct element* queue_get(queue *q)
 {
 
   // Check if the queue is empty
-  if (queue_empty(q))
+  while (queue_empty(q))
   {
-    perror("Queue is empty");
-    exit(-1);
+    pthread_cond_wait(&reading_cond, &reading_mutex); // Wait until there is an element in the queue
   }
   
+  pthread_mutex_lock(&reading_mutex); // Lock the mutex to read from the queue
   int position = (q->out); // Get the position of the element to be consumed
   q->out = (q->out + 1) % q->size; // Move pointer so the next consumer thread can consume the next element
   q->elements = q->elements - 1; // Decrease the number of elements in the queue
+  pthread_mutex_unlock(&reading_mutex); // Unlock the mutex
 
+  // Get element from the queue
   struct element * element = malloc(sizeof(struct element));
   if (element == NULL) {
     perror("Could not assign memory for element in queue_get");
@@ -69,6 +84,8 @@ struct element* queue_get(queue *q)
   element->op = getelem->op;
   element->product_id = getelem->product_id;
   element->units = getelem->units;
+
+  pthread_cond_signal(&writing_cond); // Signal that there is space in the queue
   
   return element;
 }
