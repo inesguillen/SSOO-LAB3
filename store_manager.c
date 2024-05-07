@@ -13,10 +13,66 @@
 #include <sys/wait.h>
 
 
-
+// Global variables
 int profits = 0;
-int product_stock [5] = {0};
+int product_stock[5] = {0};
 int values_table[5][2] = {{2, 3}, {5, 10}, {15, 20}, {25, 40}, {100, 125}}; // Table of purchase/sell prices
+
+struct producer_data {
+  int num_tasks;
+  queue *q;
+  struct element *data;
+};
+
+void *producer(void *arg)
+{
+  struct producer_data *data = (struct producer_data *)arg;
+  int num_tasks = data->num_tasks;
+  queue *q = data->q;
+
+  for (int i = 0; i < num_tasks; i++)
+  {
+    queue_put(q, &(data->data[i]));
+  }
+
+  pthread_exit(NULL);
+
+}
+
+
+void *consumer(void *arg)
+{
+
+  queue *q = (queue *)arg;
+  
+  
+  while (1)
+  {
+    struct element *elem = queue_get(q);
+    
+    if (elem->op == -1) // Identify fake element that signals the thread to finish
+    {
+      break;
+    }
+
+    int * curr_stock = &(product_stock[elem->product_id - 1]);
+    int amount = (elem->units*values_table[elem->product_id - 1][elem->op]);
+    // Purchase
+    if (elem->op == 0)
+    {
+      purchase(&profits, curr_stock, amount, elem->units);
+    }
+
+    // Sell
+    else
+    {
+     sale(&profits, curr_stock, amount, elem->units); 
+    }
+  }
+
+  pthread_exit(NULL);
+}
+
 
 int main (int argc, const char * argv[])
 {
@@ -114,9 +170,37 @@ for (int i = 0; i < num_consumers; i++)
   pthread_create(&consumer_threads[i], NULL, consumer, (void *)q);
 }
 
+// Wait for all producer threads to finish
+for (int i = 0; i < num_producers; i++)
+{
+  pthread_join(producer_threads[i], NULL);
+}
+
+while (queue_empty(q) == 0) // Wait for consumers to finish (the queue will end up empty)
+{
+  continue;
+}
+
+// Insert fake elements (as much as consumer threads) to signal the consumers to finish
+struct element fake_elem[num_consumers];
+for (int i = 0; i < num_consumers; i++)
+{
+  fake_elem[i].op = -1;
+}
+pthread_t waking_thread;
+struct producer_data waking_args;
+waking_args.q = q;
+waking_args.num_tasks = num_consumers;
+waking_args.data = fake_elem;
+pthread_create(&waking_thread, NULL, producer, (void *)&waking_args);
 
 
-
+// Wait for all consumer threads to finish
+for (int i = 0; i < num_consumers; i++)
+{
+  pthread_join(consumer_threads[i], NULL);
+}
+pthread_join(waking_thread, NULL);
 
   // Output
   printf("Total: %d euros\n", profits);
@@ -127,55 +211,10 @@ for (int i = 0; i < num_consumers; i++)
   printf("  Product 4: %d\n", product_stock[3]);
   printf("  Product 5: %d\n", product_stock[4]);
 
+  // Free the memory
+  free(data);
+  queue_destroy(q);
+
   return 0;
 }
 
-void *producer(void *arg)
-{
-  struct producer_data *data = (struct producer_data *)arg;
-  int num_tasks = data->num_tasks;
-  queue *q = data->q;
-
-  for (int i = 0; i < num_tasks; i++)
-  {
-    queue_put(q, &(data->data[i]));
-  }
-
-  pthread_exit(NULL);
-
-}
-
-
-void *consumer(void *arg)
-{
-
-  queue *q = (queue *)arg;
-  
-  
-  while (1)
-  {
-    struct element *elem = queue_get(q);
-    ADD CONDITION TO EXIT THE LOOP;
-    int curr_stock = product_stock[elem->product_id - 1];
-    int amount = (elem->units*values_table[elem->product_id - 1][elem->op]);
-    // Purchase
-    if (elem->op == 0)
-    {
-      int res = purchase(&profits, &curr_stock, amount, elem->units);
-    }
-
-    // Sell
-    else
-    {
-     int res = sale(&profits, &curr_stock, amount, elem->units); 
-    }
-  }
-
-  pthread_exit(NULL);
-}
-
-struct producer_data {
-  int num_tasks;
-  queue *q;
-  struct element *data;
-};

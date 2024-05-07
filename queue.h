@@ -25,5 +25,7 @@ int queue_put (queue *q, struct element* elem);
 struct element * queue_get(queue *q);
 int queue_empty (queue *q);
 int queue_full(queue *q);
+int purchase(int *total, int *stock, int amount, int units);
+int sale(int *total, int *stock, int amount, int units);
 
 #endif
