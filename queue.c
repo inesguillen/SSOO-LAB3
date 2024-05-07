@@ -114,6 +114,10 @@ int queue_destroy(queue *q)
 {
   free(q->buffer);
   free(q);
+  pthread_mutex_destroy(&queue_mutex);
+  pthread_cond_destroy(&writing_cond);
+  pthread_cond_destroy(&reading_cond);
+  pthread_mutex_destroy(&stock_mutex);
   return 0;
 }
 
