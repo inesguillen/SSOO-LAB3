@@ -116,12 +116,25 @@ int main (int argc, const char * argv[])
   // Close the file
   fclose(file);
 
+  // Check the queue size
+  if (atoi(argv[4]) <= 0)
+  {
+    printf("The queue size must be greater than 0.\n");
+    exit(-1);
+  }
   // Create the queue
   queue *q = queue_init(atoi(argv[4]));
 
   // Get number of producers and consumers
   int num_producers = atoi(argv[2]);
   int num_consumers = atoi(argv[3]);
+
+  // Check the number of producers and consumers
+  if (num_producers <= 0 || num_consumers <= 0)
+  {
+    printf("The number of producers and consumers must be greater than 0.\n");
+    exit(-1);
+  }
 
   // Do not create unnecessary threads
   if (num_producers > numLines)
